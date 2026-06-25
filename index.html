@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>업무 캘린더</title>
+<style>
+  @font-face {
+    font-family: "BMKkubulim";
+    src: url("BMKkubulim.otf") format("opentype");
+    font-display: swap;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --ink: #2b2b2b;
+    --muted: #9a958c;
+    --line: #ececec;
+    --day: 54px;       /* 하루 한 칸 폭 */
+    --head: 28px;      /* 날짜 헤더 높이 */
+  }
+  html, body { height: 100%; }
+  body {
+    font-family: "BMKkubulim", "Pretendard", -apple-system, sans-serif;
+    background: #ffffff;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* 상단 입력 바 — 한 줄, 배경 위에 떠 있는 오버레이 */
+  header {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 30;
+    display: flex; align-items: center; gap: 9px;
+    padding: 10px 16px;
+  }
+  h1 { font-size: 27px; font-weight: 800; letter-spacing: -0.01em; margin-right: 4px; transition: color .25s; }
+  header.on-dark h1 { color: #fff; }
+  header.on-dark .tool-btn { color: #fff; border-color: rgba(255,255,255,.5); background: transparent; }
+  header.on-dark button.add { background: #fff; color: #2b2b2b; }
+  header input[type="text"] { flex: 1 1 auto; min-width: 110px; }
+  header input {
+    font-family: inherit; font-size: 15px;
+    padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 8px; background: #fff; color: var(--ink);
+  }
+  header input:focus { outline: none; border-color: #c9c3b8; }
+  .tools { margin-left: auto; display: flex; gap: 6px; }
+  .tool-btn {
+    font-family: inherit; font-size: 14px; font-weight: 500;
+    padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px;
+    background: #fff; color: #2b2b2b; cursor: pointer;
+  }
+  .tool-btn:hover { border-color: #c9c3b8; }
+  button.add {
+    font-family: inherit; font-size: 15px; font-weight: 700;
+    padding: 8px 18px; border: none; border-radius: 8px;
+    background: var(--ink); color: #fff; cursor: pointer; transition: opacity .15s;
+  }
+  button.add:hover { opacity: 0.85; }
+
+  /* 수정 모달에서 쓰는 필드 */
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 13px; font-weight: 500; color: #2b2b2b; }
+  .field input {
+    font-family: inherit; font-size: 16px;
+    padding: 9px 11px; border: 1px solid var(--line);
+    border-radius: 9px; background: #fafafa; color: var(--ink);
+  }
+  .field input:focus { outline: none; border-color: #c9c3b8; background: #fff; }
+
+  /* 캘린더(타임라인) 영역 */
+  .stage {
+    flex: 1 1 auto;
+    position: relative;
+    overflow: auto;
+    min-height: 0;
+  }
+  .timeline { position: relative; }
+  .deco { position: absolute; pointer-events: none; z-index: 1; }
+  .deco svg { display: block; overflow: visible; }
+  .empty {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted); font-size: 14px; text-align: center;
+  }
+
+  .datehead {
+    position: absolute; bottom: 0; height: 20px; width: var(--day);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; color: #2b2b2b; font-weight: 300; pointer-events: none;
+  }
+  .datehead.is-today { font-weight: 700; }
+  .datehead.weekend { color: #FF403E; }
+
+  .bar {
+    position: absolute; height: 46px;
+    border-radius: 0; color: #fff; cursor: pointer;
+    display: flex; align-items: center; padding: 0 14px;
+    font-weight: 700; font-size: 18px;
+    white-space: nowrap; overflow: visible;
+    transition: transform .12s ease;
+    z-index: 3;
+  }
+  .bar:hover { transform: translateX(4px); z-index: 8; }
+  .bar::after {
+    content: attr(data-name);
+    position: absolute; bottom: calc(100% + 5px); left: 0;
+    background: #2b2b2b; color: #fff;
+    padding: 5px 11px; border-radius: 10px;
+    font-size: 15px; font-weight: 400; white-space: nowrap;
+    opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 40;
+  }
+  .bar:hover::after { opacity: 1; }
+  .bar .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bar .del {
+    margin-left: 8px; width: 18px; height: 18px; flex: 0 0 auto;
+    border-radius: 50%; background: rgba(0,0,0,.22); color: #fff;
+    font-size: 12px; line-height: 18px; text-align: center; opacity: 0; transition: opacity .12s;
+  }
+  .bar:hover .del { opacity: 1; }
+
+  .legend {
+    flex: 0 0 auto; text-align: center; color: #2b2b2b; font-weight: 400;
+    font-size: 14px; padding: 9px 0 14px; border-top: 1px solid var(--line);
+  }
+
+  /* 책 클릭 수정 모달 */
+  .editor {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,.25);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .editor[hidden] { display: none; }
+  .editor-card {
+    background: #fff; border-radius: 14px; padding: 20px;
+    width: 280px; display: flex; flex-direction: column; gap: 12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.22);
+  }
+  .editor-title { font-weight: 700; font-size: 18px; }
+  .editor .field input { width: 100%; }
+  .editor-btns { display: flex; gap: 8px; margin-top: 4px; }
+  .editor-btns button {
+    flex: 1; padding: 10px; border: none; border-radius: 9px;
+    font-family: inherit; font-weight: 600; font-size: 15px; cursor: pointer;
+  }
+  .e-del { background: #f2f2f2; color: #2b2b2b; }
+  .e-save { background: #2b2b2b; color: #fff; }
+
+  /* 먼지 캐릭터 */
+  .dust-wrap {
+    position: absolute;
+    transform: translateX(-50%);
+    pointer-events: none;
+    z-index: 20;
+  }
+  .bubble {
+    position: absolute; left: 50%; bottom: 100%; transform: translateX(-50%);
+    margin-bottom: 6px; background: #2b2b2b; color: #fff;
+    font-size: 14px; font-weight: 700; padding: 4px 10px; border-radius: 11px; white-space: nowrap;
+  }
+  .bubble::after {
+    content: ""; position: absolute; left: 50%; top: 100%; transform: translateX(-50%);
+    border: 4px solid transparent; border-top-color: #2b2b2b;
+  }
+  .dust { animation: hop 2.4s ease-in-out infinite; transform-origin: bottom center; }
+  .dust svg { width: 56px; height: auto; display: block; overflow: visible; }
+  .dust .eye { transform-box: fill-box; transform-origin: center; animation: blink 4s infinite; }
+
+  /* 점프할 때 날리는 먼지 */
+  .puffs { position: absolute; left: 50%; bottom: 2px; width: 0; height: 0; }
+  .puff {
+    position: absolute; border-radius: 48% 52% 50% 50%;
+    background: #c4c4c4; opacity: 0;
+    animation: puff 2.4s ease-out infinite;
+  }
+  .puff.a { width: 7px; height: 6px; --tx: -18px; --ty: -2px; }
+  .puff.b { width: 6px; height: 7px; --tx: 18px; --ty: -4px; }
+  .puff.c { width: 5px; height: 5px; --tx: -10px; --ty: -13px; }
+  .puff.d { width: 5px; height: 6px; --tx: 12px; --ty: -12px; }
+  .puff.e { width: 4px; height: 4px; --tx: 1px; --ty: -16px; }
+
+  @keyframes hop {
+    0%, 38%, 100% { transform: translateY(0) scaleY(1) scaleX(1); }
+    44% { transform: translateY(0) scaleY(.84) scaleX(1.12); }
+    60% { transform: translateY(-22px) scaleY(1.1) scaleX(.92); }
+    72% { transform: translateY(-18px) scaleY(1.04) scaleX(.97); }
+    84% { transform: translateY(0) scaleY(.88) scaleX(1.1); }
+    92% { transform: translateY(0) scaleY(1.02) scaleX(.99); }
+  }
+  @keyframes blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    96% { transform: scaleY(.1); }
+  }
+  @keyframes puff {
+    0%, 80% { opacity: 0; transform: translate(0,0) scale(.3); }
+    86% { opacity: .55; }
+    100% { opacity: 0; transform: translate(var(--tx), var(--ty)) scale(1.15); }
+  }
+  @media (prefers-reduced-motion: reduce) { .dust, .eye, .puff { animation: none; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>UP TOP</h1>
+    <input type="text" id="title" placeholder="업무 이름" autocomplete="off">
+    <input type="date" id="start">
+    <input type="date" id="end">
+    <button class="add" onclick="addTask()">올리기</button>
+    <div class="tools">
+      <button class="tool-btn" onclick="exportData()">백업</button>
+      <label class="tool-btn">가져오기<input type="file" accept="application/json" onchange="importData(event)" hidden></label>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div class="timeline" id="timeline"></div>
+
+    <div class="dust-wrap" id="dust" style="display:none">
+      <div class="bubble" id="bubble">오늘</div>
+      <div class="dust">
+        <svg viewBox="0 0 60 44" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <filter id="sketch" x="-25%" y="-25%" width="150%" height="150%">
+              <feTurbulence type="turbulence" baseFrequency="0.045" numOctaves="2" seed="7" result="n"/>
+              <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"/>
+            </filter>
+          </defs>
+          <g filter="url(#sketch)" fill="none" stroke="#2b2b2b" stroke-width="2.2"
+             stroke-linecap="round" stroke-linejoin="round">
+            <path d="M24 33 L23 41"/>
+            <path d="M35 33 L36 41"/>
+            <path d="M12 31 C8 27 10 21 16 21 C14 15 21 14 23 19 C25 13 31 13 32 19
+                     C35 14 41 15 39 21 C46 20 49 26 44 29 C48 32 44 36 40 34
+                     C39 38 33 37 32 34 C30 37 25 37 24 34 C19 37 13 36 12 31 Z"
+                  fill="#d4d4d4"/>
+            <ellipse cx="18" cy="30" rx="2.4" ry="1.5" fill="#ffadc0" stroke="none"/>
+            <ellipse cx="41" cy="30" rx="2.4" ry="1.5" fill="#ffadc0" stroke="none"/>
+            <ellipse class="eye" cx="24" cy="26" rx="1.8" ry="2.4" fill="#2b2b2b" stroke="none"/>
+            <ellipse class="eye" cx="35" cy="26" rx="1.8" ry="2.4" fill="#2b2b2b" stroke="none"/>
+            <path d="M27 30 Q29.5 33 32 30"/>
+          </g>
+        </svg>
+      </div>
+      <div class="puffs">
+        <span class="puff a"></span><span class="puff b"></span><span class="puff c"></span><span class="puff d"></span><span class="puff e"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="legend" id="legend"></div>
+
+  <div class="editor" id="editor" hidden onclick="closeEditor()">
+    <div class="editor-card" onclick="event.stopPropagation()">
+      <div class="editor-title" id="e-title"></div>
+      <div class="field"><label>시작일</label><input type="date" id="e-start"></div>
+      <div class="field"><label>종료일</label><input type="date" id="e-end"></div>
+      <div class="editor-btns">
+        <button class="e-del" onclick="deleteEditing()">삭제</button>
+        <button class="e-save" onclick="saveEditing()">저장</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+const KEY = "work_book_tower_v1";
+const DAY = 54, BAR_H = 46, ROW_GAP = 0, TOP_PAD = 16, BASE = 24;
+const PALETTE = [
+  "#0CEFD3","#1A7CFF","#6580FF","#FF403E","#FF8400","#FFC600","#F13FA1","#A8744F",
+  "#08A794","#0BD7BE","#87FFE5","#B0FFEB","#E6FFF8","#73B6FF","#FFEE6E","#FFAA55"
+];
+const BUBBLES = [
+  "오늘", "오늘 ☀️", "오늘 날씨 맑음 ☀️", "오늘 날씨 비옴 ☔",
+  "오늘 날씨 흐림 ☁️", "오늘도 화이팅!", "오늘 뭐하지?", "오늘 바람 솔솔 🍃"
+];
+function randomBubble() { return BUBBLES[Math.floor(Math.random() * BUBBLES.length)]; }
+
+// 책탑 높이에 따라 지상→하늘→우주 (bottom 기준 px)
+const SKY_GRADIENT =
+  "linear-gradient(to top," +
+  "#ffffff 0px,#ffffff 250px,#e9f6ff 430px,#a9d4ff 720px," +
+  "#5c83c4 1050px,#33397a 1400px,#15123e 1850px,#080620 2300px)";
+
+const GRASS = '<svg width="26" viewBox="0 0 26 22" xmlns="http://www.w3.org/2000/svg">' +
+  '<g filter="url(#sketch)" fill="none" stroke="#3a9d4a" stroke-width="2" stroke-linecap="round">' +
+  '<path d="M13 22 Q10 12 7 5"/><path d="M13 22 Q13 11 13 4"/><path d="M13 22 Q16 12 19 6"/></g></svg>';
+const CLOUD = '<svg width="64" viewBox="0 0 72 40" xmlns="http://www.w3.org/2000/svg">' +
+  '<g filter="url(#sketch)" fill="#ffffff" stroke="#aab3bd" stroke-width="2" stroke-linejoin="round">' +
+  '<path d="M18 32 Q7 32 9 23 Q4 14 15 15 Q17 6 28 9 Q34 2 43 9 Q55 6 55 17 Q66 17 61 27 Q63 33 52 32 Z"/></g></svg>';
+const STAR = '<svg width="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
+  '<g filter="url(#sketch)" fill="#FFC600" stroke="#c79e00" stroke-width="1.4" stroke-linejoin="round">' +
+  '<path d="M12 2 L14.7 8.6 L21.8 9 L16.2 13.6 L18.2 20.6 L12 16.6 L5.8 20.6 L7.8 13.6 L2.2 9 L9.3 8.6 Z"/></g></svg>';
+
+function addDeco(tl, html, x, bottom, z) {
+  const d = document.createElement("div");
+  d.className = "deco";
+  d.style.left = x + "px";
+  d.style.bottom = bottom + "px";
+  if (z) d.style.zIndex = z;
+  d.innerHTML = html;
+  tl.appendChild(d);
+}
+function decorate(tl, width, height, totalDays) {
+  // 풀: 날짜 칸마다 하나씩, 날짜 글자 바로 위에 (책 앞 레이어)
+  for (let i = 0; i < totalDays; i++) {
+    addDeco(tl, GRASS, i * DAY + DAY / 2 - 13, 19, 4);
+  }
+  // 구름 (하늘 구간)
+  [[0.18,400],[0.7,470],[0.4,660],[0.85,760],[0.12,900],[0.6,1020]]
+    .forEach(([fx, y]) => { if (y + 60 < height) addDeco(tl, CLOUD, fx * (width - 80), y, 1); });
+  // 별 (우주 구간)
+  [[0.1,820],[0.35,900],[0.6,860],[0.82,980],[0.2,1120],[0.5,1180],[0.75,1260],[0.3,1420],[0.65,1500],[0.45,1680]]
+    .forEach(([fx, y]) => { if (y + 24 < height) addDeco(tl, STAR, fx * (width - 40), y, 1); });
+}
+
+function pickColor(used) {
+  const avail = PALETTE.filter(c => !used.includes(c));
+  const pool = avail.length ? avail : PALETTE;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+function ensureColors(tasks) {
+  const used = tasks.map(t => t.color).filter(Boolean);
+  let changed = false;
+  tasks.forEach(t => { if (!t.color) { t.color = pickColor(used); used.push(t.color); changed = true; } });
+  if (changed) save(tasks);
+  return tasks;
+}
+function textColor(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  const L = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
+  return L > 170 ? "#2b2b2b" : "#ffffff";
+}
+
+function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
+function save(t) { localStorage.setItem(KEY, JSON.stringify(t)); }
+function todayStr() { const d = new Date(); return iso(d); }
+function iso(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function parseD(s) { return new Date(s + "T00:00:00"); }
+function diffDays(a, b) { return Math.round((parseD(b) - parseD(a)) / 86400000); }
+function addDays(s, n) { const d = parseD(s); d.setDate(d.getDate() + n); return iso(d); }
+function span(t) { return diffDays(t.start, t.end) + 1; }            // 포함 일수
+function fmt(s) { const d = parseD(s); return (d.getMonth()+1) + "." + d.getDate(); }
+
+function addTask() {
+  const title = document.getElementById("title").value.trim();
+  const start = document.getElementById("start").value;
+  const end = document.getElementById("end").value;
+  if (!title) { alert("업무 이름을 입력하세요."); return; }
+  if (!start || !end) { alert("시작일과 종료일을 입력하세요."); return; }
+  if (parseD(end) < parseD(start)) { alert("종료일이 시작일보다 빠릅니다."); return; }
+  const tasks = load();
+  const used = tasks.map(t => t.color).filter(Boolean);
+  tasks.push({ id: Date.now(), title, start, end, color: pickColor(used) });
+  save(tasks);
+  document.getElementById("title").value = "";
+  render(true);
+}
+function removeTask(id) { save(load().filter(t => t.id !== id)); render(true); }
+
+let editingId = null;
+function openEditor(t) {
+  editingId = t.id;
+  document.getElementById("e-title").textContent = t.title;
+  document.getElementById("e-start").value = t.start;
+  document.getElementById("e-end").value = t.end;
+  document.getElementById("editor").hidden = false;
+}
+function closeEditor() { document.getElementById("editor").hidden = true; editingId = null; }
+function saveEditing() {
+  const s = document.getElementById("e-start").value;
+  const e = document.getElementById("e-end").value;
+  if (!s || !e) { alert("날짜를 입력하세요."); return; }
+  if (parseD(e) < parseD(s)) { alert("종료일이 시작일보다 빠릅니다."); return; }
+  const tasks = load();
+  const t = tasks.find(x => x.id === editingId);
+  if (t) { t.start = s; t.end = e; save(tasks); }
+  closeEditor();
+  render(true);
+}
+function deleteEditing() { const id = editingId; closeEditor(); if (id != null) removeTask(id); }
+
+function render(keepScroll) {
+  const stage = document.getElementById("stage");
+  const tl = document.getElementById("timeline");
+  const legend = document.getElementById("legend");
+  const dust = document.getElementById("dust");
+  const today = todayStr();
+  const tasks = ensureColors(load());
+  const prevScroll = stage.scrollLeft;
+  stage.appendChild(dust);   // 이전 렌더에서 타임라인에 넣어둔 먼지 회수 (아래 innerHTML 비우기에서 보호)
+  tl.innerHTML = "";
+
+  if (tasks.length === 0) {
+    tl.style.width = "100%";
+    tl.style.height = "100%";
+    tl.style.background = "";
+    tl.innerHTML = '<div class="empty">아직 등록된 업무가 없습니다.<br>위에서 첫 업무를 올려보세요.</div>';
+    dust.style.display = "none";
+    legend.textContent = "";
+    return;
+  }
+  dust.style.display = "block";
+
+  // 날짜 범위: 모든 업무 + 오늘 포함, 앞뒤 2일 여유
+  let lo = today, hi = today;
+  tasks.forEach(t => { if (t.start < lo) lo = t.start; if (t.end > hi) hi = t.end; });
+  lo = addDays(lo, -2);
+  hi = addDays(hi, 2);
+  let totalDays = diffDays(lo, hi) + 1;
+  const needDays = Math.ceil(stage.clientWidth / DAY) + 1;   // 화면 너비만큼 날짜·풀 채우기
+  if (totalDays < needDays) { hi = addDays(hi, needDays - totalDays); totalDays = needDays; }
+
+  // 기간 긴 책이 바닥, 짧을수록 위로 쌓임
+  const sorted = [...tasks].sort((a, b) => span(b) - span(a));
+
+  const width = Math.max(totalDays * DAY, stage.clientWidth);
+  const stackTop = BASE + sorted.length * (BAR_H + ROW_GAP) + TOP_PAD;
+  const height = Math.max(stackTop, stage.clientHeight);
+  tl.style.width = width + "px";
+  tl.style.height = height + "px";
+  tl.style.background = SKY_GRADIENT;
+  decorate(tl, width, height, totalDays);
+
+  // 날짜 숫자 (하단)
+  for (let i = 0; i < totalDays; i++) {
+    const ds = addDays(lo, i);
+    const d = parseD(ds);
+    const dow = d.getDay();
+    const head = document.createElement("div");
+    head.className = "datehead" + (ds === today ? " is-today" : "") + (dow === 0 || dow === 6 ? " weekend" : "");
+    head.style.left = (i * DAY) + "px";
+    head.textContent = d.getDate();
+    tl.appendChild(head);
+  }
+
+  const tx = diffDays(lo, today) * DAY + DAY / 2;
+
+  // 책 막대: 가로 위치=시작일, 길이=기간, 아래에서부터 쌓임
+  let todayTop = BASE, hasToday = false;        // 오늘 위치에 쌓인 책탑 꼭대기 높이
+  sorted.forEach((t, i) => {
+    const left = diffDays(lo, t.start) * DAY;
+    const w = span(t) * DAY;
+    const bottom = BASE + i * (BAR_H + ROW_GAP);
+    const color = t.color || PALETTE[0];
+    const onToday = t.start <= today && today <= t.end;
+    if (onToday) { hasToday = true; todayTop = Math.max(todayTop, bottom + BAR_H); }
+
+    const bar = document.createElement("div");
+    bar.className = "bar" + (onToday ? " is-today" : "");
+    bar.style.left = left + "px";
+    bar.style.width = (w - 2) + "px";
+    bar.style.bottom = bottom + "px";
+    bar.style.background = color;
+    bar.style.color = textColor(color);
+    bar.dataset.name = t.title + " · " + fmt(t.start) + "~" + fmt(t.end);
+    bar.innerHTML = '<span class="label">' + esc(t.title) + '</span>';
+    bar.onclick = () => openEditor(t);
+    tl.appendChild(bar);
+  });
+
+  // 먼지: 오늘 위치(x)의 책탑 꼭대기에 딱 붙어서 (타임라인 안에 두어 책과 같은 좌표·스크롤)
+  tl.appendChild(dust);
+  dust.style.left = tx + "px";
+  dust.style.bottom = (todayTop - 3) + "px";
+  const bub = document.getElementById("bubble");
+  bub.style.display = hasToday ? "block" : "none";
+  if (hasToday) bub.textContent = randomBubble();
+
+  legend.textContent = "총 " + tasks.length + "건 · " + fmt(lo) + " ~ " + fmt(hi);
+
+  // 가로: 오늘 중심(또는 유지), 세로: 항상 바닥부터
+  if (keepScroll) stage.scrollLeft = prevScroll;
+  else stage.scrollLeft = Math.max(0, tx - stage.clientWidth / 2);
+  stage.scrollTop = stage.scrollHeight;
+  updateHeaderColor();
+}
+
+function exportData() {
+  const data = localStorage.getItem(KEY) || "[]";
+  const blob = new Blob([data], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "업무캘린더_백업.json"; a.click();
+  URL.revokeObjectURL(url);
+}
+function importData(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const arr = JSON.parse(reader.result);
+      if (!Array.isArray(arr)) throw 0;
+      save(arr); render();
+      alert("불러왔습니다: " + arr.length + "건");
+    } catch { alert("올바른 백업 파일이 아닙니다."); }
+  };
+  reader.readAsText(file);
+  e.target.value = "";
+}
+function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c])); }
+
+// 헤더 뒤 배경(화면 최상단)이 어두우면 글자 흰색으로
+function updateHeaderColor() {
+  const tl = document.getElementById("timeline");
+  const yTop = tl.offsetHeight - document.getElementById("stage").scrollTop;   // 화면 최상단의 배경 높이(bottom 기준)
+  document.querySelector("header").classList.toggle("on-dark", yTop >= 1000);
+}
+
+const today = todayStr();
+document.getElementById("start").value = today;
+document.getElementById("end").value = today;
+document.getElementById("title").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+document.getElementById("stage").addEventListener("scroll", updateHeaderColor);
+setInterval(() => {
+  const b = document.getElementById("bubble");
+  if (b && b.style.display !== "none") b.textContent = randomBubble();
+}, 3500);
+
+render();
+</script>
+</body>
+</html>
