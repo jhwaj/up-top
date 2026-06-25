@@ -78,6 +78,7 @@
     position: relative;
     overflow: auto;
     min-height: 0;
+    background: #ffffff;
   }
   .timeline { position: relative; }
   .deco { position: absolute; pointer-events: none; z-index: 1; }
@@ -218,6 +219,7 @@
     <div class="tools">
       <button class="tool-btn" onclick="exportData()">백업</button>
       <label class="tool-btn">가져오기<input type="file" accept="application/json" onchange="importData(event)" hidden></label>
+      <button class="tool-btn" onclick="resetAll()">리셋</button>
     </div>
   </header>
 
@@ -261,7 +263,7 @@
 
   <div class="editor" id="editor" hidden onclick="closeEditor()">
     <div class="editor-card" onclick="event.stopPropagation()">
-      <div class="editor-title" id="e-title"></div>
+      <div class="field"><label>업무 이름</label><input type="text" id="e-title" autocomplete="off"></div>
       <div class="field"><label>시작일</label><input type="date" id="e-start"></div>
       <div class="field"><label>종료일</label><input type="date" id="e-end"></div>
       <div class="editor-btns">
@@ -288,8 +290,8 @@ function randomBubble() { return BUBBLES[Math.floor(Math.random() * BUBBLES.leng
 // 책탑 높이에 따라 지상→하늘→우주 (bottom 기준 px)
 const SKY_GRADIENT =
   "linear-gradient(to top," +
-  "#ffffff 0px,#ffffff 250px,#e9f6ff 430px,#a9d4ff 720px," +
-  "#5c83c4 1050px,#33397a 1400px,#15123e 1850px,#080620 2300px)";
+  "#ffffff 0px,#f4faff 130px,#e2f1ff 330px,#bbdcff 640px," +
+  "#8badde 980px,#5566a8 1350px,#2c2a5c 1750px,#120e30 2150px,#07051c 2600px)";
 
 const GRASS = '<svg width="26" viewBox="0 0 26 22" xmlns="http://www.w3.org/2000/svg">' +
   '<g filter="url(#sketch)" fill="none" stroke="#3a9d4a" stroke-width="2" stroke-linecap="round">' +
@@ -300,6 +302,14 @@ const CLOUD = '<svg width="64" viewBox="0 0 72 40" xmlns="http://www.w3.org/2000
 const STAR = '<svg width="22" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">' +
   '<g filter="url(#sketch)" fill="#FFC600" stroke="#c79e00" stroke-width="1.4" stroke-linejoin="round">' +
   '<path d="M12 2 L14.7 8.6 L21.8 9 L16.2 13.6 L18.2 20.6 L12 16.6 L5.8 20.6 L7.8 13.6 L2.2 9 L9.3 8.6 Z"/></g></svg>';
+const PLANET = '<svg width="84" viewBox="0 0 92 60" xmlns="http://www.w3.org/2000/svg">' +
+  '<g filter="url(#sketch)" stroke="#2b2b2b" stroke-width="2" stroke-linejoin="round">' +
+  '<circle cx="46" cy="30" r="20" fill="#FF8400"/>' +
+  '<ellipse cx="46" cy="30" rx="40" ry="11" fill="none"/></g></svg>';
+const PLANET2 = '<svg width="58" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">' +
+  '<g filter="url(#sketch)" stroke="#2b2b2b" stroke-width="2" stroke-linejoin="round">' +
+  '<circle cx="30" cy="30" r="22" fill="#6580FF"/>' +
+  '<circle cx="22" cy="24" r="4" fill="none"/><circle cx="37" cy="36" r="6" fill="none"/></g></svg>';
 
 function addDeco(tl, html, x, bottom, z) {
   const d = document.createElement("div");
@@ -319,8 +329,12 @@ function decorate(tl, width, height, totalDays) {
   [[0.18,400],[0.7,470],[0.4,660],[0.85,760],[0.12,900],[0.6,1020]]
     .forEach(([fx, y]) => { if (y + 60 < height) addDeco(tl, CLOUD, fx * (width - 80), y, 1); });
   // 별 (우주 구간)
-  [[0.1,820],[0.35,900],[0.6,860],[0.82,980],[0.2,1120],[0.5,1180],[0.75,1260],[0.3,1420],[0.65,1500],[0.45,1680]]
+  [[0.1,820],[0.35,900],[0.6,860],[0.82,980],[0.2,1120],[0.5,1180],[0.75,1260],[0.3,1420],[0.65,1500],
+   [0.45,1680],[0.15,1850],[0.55,1980],[0.85,2150],[0.3,2300],[0.7,2480]]
     .forEach(([fx, y]) => { if (y + 24 < height) addDeco(tl, STAR, fx * (width - 40), y, 1); });
+  // 행성 (우주 깊은 곳)
+  if (1550 + 60 < height) addDeco(tl, PLANET, 0.16 * (width - 90), 1550, 1);
+  if (2150 + 60 < height) addDeco(tl, PLANET2, 0.68 * (width - 60), 2150, 1);
 }
 
 function pickColor(used) {
@@ -366,24 +380,27 @@ function addTask() {
   render(true);
 }
 function removeTask(id) { save(load().filter(t => t.id !== id)); render(true); }
+function resetAll() { if (confirm("모든 업무를 삭제할까요? 되돌릴 수 없습니다.")) { save([]); render(); } }
 
 let editingId = null;
 function openEditor(t) {
   editingId = t.id;
-  document.getElementById("e-title").textContent = t.title;
+  document.getElementById("e-title").value = t.title;
   document.getElementById("e-start").value = t.start;
   document.getElementById("e-end").value = t.end;
   document.getElementById("editor").hidden = false;
 }
 function closeEditor() { document.getElementById("editor").hidden = true; editingId = null; }
 function saveEditing() {
+  const title = document.getElementById("e-title").value.trim();
   const s = document.getElementById("e-start").value;
   const e = document.getElementById("e-end").value;
+  if (!title) { alert("업무 이름을 입력하세요."); return; }
   if (!s || !e) { alert("날짜를 입력하세요."); return; }
   if (parseD(e) < parseD(s)) { alert("종료일이 시작일보다 빠릅니다."); return; }
   const tasks = load();
   const t = tasks.find(x => x.id === editingId);
-  if (t) { t.start = s; t.end = e; save(tasks); }
+  if (t) { t.title = title; t.start = s; t.end = e; save(tasks); }
   closeEditor();
   render(true);
 }
@@ -406,8 +423,14 @@ function render(keepScroll) {
     tl.style.background = "";
     tl.innerHTML = '<div class="empty">아직 등록된 업무가 없습니다.<br>위에서 첫 업무를 올려보세요.</div>';
     document.getElementById("datebar").innerHTML = "";
-    dust.style.display = "none";
     legend.textContent = "";
+    // 먼지 혼자 바닥에서 점프
+    dust.style.display = "block";
+    dust.style.left = "50%";
+    dust.style.bottom = "44px";
+    const bub0 = document.getElementById("bubble");
+    bub0.style.display = "block";
+    bub0.textContent = "나는 책먼지!";
     return;
   }
   dust.style.display = "block";
@@ -531,6 +554,8 @@ document.getElementById("start").value = today;
 document.getElementById("end").value = today;
 document.getElementById("title").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
 document.getElementById("stage").addEventListener("scroll", updateHeaderColor);
+let _resizeT;
+window.addEventListener("resize", () => { clearTimeout(_resizeT); _resizeT = setTimeout(render, 150); });
 setInterval(() => {
   const b = document.getElementById("bubble");
   if (b && b.style.display !== "none") b.textContent = randomBubble();
