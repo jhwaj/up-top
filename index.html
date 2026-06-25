@@ -112,12 +112,15 @@
   }
   .bar:hover { transform: translateX(4px); z-index: 8; }
   .bar .label {
-    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
-    white-space: nowrap; font-size: 15px; font-weight: 700; color: #2b2b2b;
-    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 4px #fff;
-    pointer-events: none;
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; pointer-events: none;
   }
-  .bar .label::before { content: "→ "; opacity: .5; }
+  .bar.label-out .label {
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    flex: none; overflow: visible; color: #2b2b2b; font-weight: 700;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 4px #fff;
+  }
+  .bar.label-out .label::before { content: "→ "; opacity: .5; }
   .bar .del {
     margin-left: 8px; width: 18px; height: 18px; flex: 0 0 auto;
     border-radius: 50%; background: rgba(0,0,0,.22); color: #fff;
@@ -463,10 +466,12 @@ function render(keepScroll) {
     bar.style.bottom = bottom + "px";
     bar.style.background = color;
     bar.style.color = textColor(color);
-    bar.dataset.name = t.title + " · " + fmt(t.start) + "~" + fmt(t.end);
     bar.innerHTML = '<span class="label">' + esc(t.title) + '</span>';
     bar.onclick = () => openEditor(t);
     tl.appendChild(bar);
+    // 막대 안에 이름이 안 들어가면(잘리면) 옆 화살표 라벨로
+    const lbl = bar.firstChild;
+    if (lbl.scrollWidth > lbl.clientWidth + 1) bar.classList.add("label-out");
   });
 
   // 먼지: 오늘 위치(x)의 책탑 꼭대기에 딱 붙어서 (타임라인 안에 두어 책과 같은 좌표·스크롤)
@@ -532,6 +537,7 @@ setInterval(() => {
 }, 3500);
 
 render();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
 </script>
 </body>
 </html>
