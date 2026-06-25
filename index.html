@@ -274,7 +274,8 @@ const PALETTE = [
 ];
 const BUBBLES = [
   "오늘", "오늘 ☀️", "오늘 날씨 맑음 ☀️", "오늘 날씨 비옴 ☔",
-  "오늘 날씨 흐림 ☁️", "오늘도 화이팅!", "오늘 뭐하지?", "오늘 바람 솔솔 🍃"
+  "오늘 날씨 흐림 ☁️", "오늘도 화이팅!", "오늘 뭐하지?", "오늘 바람 솔솔 🍃",
+  "나는 책먼지!"
 ];
 function randomBubble() { return BUBBLES[Math.floor(Math.random() * BUBBLES.length)]; }
 
@@ -413,8 +414,8 @@ function render(keepScroll) {
   const needDays = Math.ceil(stage.clientWidth / DAY) + 1;   // 화면 너비만큼 날짜·풀 채우기
   if (totalDays < needDays) { hi = addDays(hi, needDays - totalDays); totalDays = needDays; }
 
-  // 기간 긴 책이 바닥, 짧을수록 위로 쌓임
-  const sorted = [...tasks].sort((a, b) => span(b) - span(a));
+  // 등록한 순서대로 쌓임 (먼저 등록한 책이 바닥, 최근 등록이 위)
+  const sorted = [...tasks].sort((a, b) => a.id - b.id);
 
   const width = Math.max(totalDays * DAY, stage.clientWidth);
   const stackTop = BASE + sorted.length * (BAR_H + ROW_GAP) + TOP_PAD;
@@ -471,10 +472,10 @@ function render(keepScroll) {
 
   legend.textContent = "총 " + tasks.length + "건 · " + fmt(lo) + " ~ " + fmt(hi);
 
-  // 가로: 오늘 중심(또는 유지), 세로: 항상 바닥부터
-  if (keepScroll) stage.scrollLeft = prevScroll;
-  else stage.scrollLeft = Math.max(0, tx - stage.clientWidth / 2);
-  stage.scrollTop = stage.scrollHeight;
+  // 가로: 오늘 날짜 중심 / 세로: 오늘 책탑 꼭대기가 화면 상단에 오도록 (아래로 스크롤하면 바닥 확인 가능)
+  stage.scrollLeft = Math.max(0, tx - stage.clientWidth / 2);
+  const headerH = document.querySelector("header").offsetHeight;
+  stage.scrollTop = Math.max(0, (height - todayTop) - headerH - 80);
   updateHeaderColor();
 }
 
