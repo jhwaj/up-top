@@ -377,6 +377,9 @@ function addTask() {
   tasks.push({ id: Date.now(), title, start, end, color: pickColor(used) });
   save(tasks);
   document.getElementById("title").value = "";
+  const t0 = todayStr();
+  document.getElementById("start").value = t0;
+  document.getElementById("end").value = t0;
   render(true);
 }
 function removeTask(id) { save(load().filter(t => t.id !== id)); render(true); }
