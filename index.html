@@ -417,22 +417,6 @@ function render(keepScroll) {
   stage.appendChild(dust);   // 이전 렌더에서 타임라인에 넣어둔 먼지 회수 (아래 innerHTML 비우기에서 보호)
   tl.innerHTML = "";
 
-  if (tasks.length === 0) {
-    tl.style.width = "100%";
-    tl.style.height = "100%";
-    tl.style.background = "";
-    tl.innerHTML = '<div class="empty">아직 등록된 업무가 없습니다.<br>위에서 첫 업무를 올려보세요.</div>';
-    document.getElementById("datebar").innerHTML = "";
-    legend.textContent = "";
-    // 먼지 혼자 바닥에서 점프
-    dust.style.display = "block";
-    dust.style.left = "50%";
-    dust.style.bottom = "44px";
-    const bub0 = document.getElementById("bubble");
-    bub0.style.display = "block";
-    bub0.textContent = "나는 책먼지!";
-    return;
-  }
   dust.style.display = "block";
 
   // 날짜 범위: 모든 업무 + 오늘 포함, 앞뒤 2일 여유
@@ -448,12 +432,8 @@ function render(keepScroll) {
   const sorted = [...tasks].sort((a, b) => a.id - b.id);
 
   const width = Math.max(totalDays * DAY, stage.clientWidth);
-  const stackTop = BASE + sorted.length * (BAR_H + ROW_GAP) + TOP_PAD;
-  const height = Math.max(stackTop, stage.clientHeight);
   tl.style.width = width + "px";
-  tl.style.height = height + "px";
   tl.style.background = SKY_GRADIENT;
-  decorate(tl, width, height, totalDays);
 
   // 날짜 숫자 — 화면 하단 고정 바(datebar)에, 가로로만 책과 함께 이동
   const datebar = document.getElementById("datebar");
@@ -472,15 +452,21 @@ function render(keepScroll) {
 
   const tx = diffDays(lo, today) * DAY + DAY / 2;
 
-  // 책 막대: 가로 위치=시작일, 길이=기간, 아래에서부터 쌓임
-  let todayTop = BASE, hasToday = false;        // 오늘 위치에 쌓인 책탑 꼭대기 높이
-  sorted.forEach((t, i) => {
+  // 책 막대: 테트리스 패킹 — 기간(가로 구간)이 겹치는 책 위에 얹고, 없으면 바닥까지 내려감
+  let todayTop = BASE, hasToday = false, maxTop = BASE;
+  const placed = [];
+  sorted.forEach((t) => {
     const left = diffDays(lo, t.start) * DAY;
     const w = span(t) * DAY;
-    const bottom = BASE + i * (BAR_H + ROW_GAP);
+    const right = left + w;
+    let bottom = BASE;
+    placed.forEach(p => { if (left < p.right && p.left < right) bottom = Math.max(bottom, p.top); });
+    const topY = bottom + BAR_H;
+    placed.push({ left, right, top: topY });
+    maxTop = Math.max(maxTop, topY);
     const color = t.color || PALETTE[0];
     const onToday = t.start <= today && today <= t.end;
-    if (onToday) { hasToday = true; todayTop = Math.max(todayTop, bottom + BAR_H); }
+    if (onToday) { hasToday = true; todayTop = Math.max(todayTop, topY); }
 
     const bar = document.createElement("div");
     bar.className = "bar" + (onToday ? " is-today" : "");
@@ -497,15 +483,23 @@ function render(keepScroll) {
     if (lbl.scrollWidth > lbl.clientWidth + 1) bar.classList.add("label-out");
   });
 
+  // 책 높이에 맞춰 타임라인 높이·데코 결정
+  const height = Math.max(maxTop + TOP_PAD, stage.clientHeight);
+  tl.style.height = height + "px";
+  decorate(tl, width, height, totalDays);
+
   // 먼지: 오늘 위치(x)의 책탑 꼭대기에 딱 붙어서 (타임라인 안에 두어 책과 같은 좌표·스크롤)
   tl.appendChild(dust);
   dust.style.left = tx + "px";
   dust.style.bottom = (todayTop - 3) + "px";
   const bub = document.getElementById("bubble");
-  bub.style.display = hasToday ? "block" : "none";
+  bub.style.display = (hasToday || tasks.length === 0) ? "block" : "none";
   if (hasToday) bub.textContent = randomBubble();
+  else if (tasks.length === 0) bub.textContent = "나는 책먼지!";
 
-  legend.textContent = "총 " + tasks.length + "건 · " + fmt(lo) + " ~ " + fmt(hi);
+  legend.textContent = tasks.length === 0
+    ? "업무를 올려 책탑을 쌓아보세요"
+    : "총 " + tasks.length + "건 · " + fmt(lo) + " ~ " + fmt(hi);
 
   // 가로: 오늘 날짜 중심 / 세로: 오늘 책탑 꼭대기가 화면 상단에 오도록 (아래로 스크롤하면 바닥 확인 가능)
   stage.scrollLeft = Math.max(0, tx - stage.clientWidth / 2);
