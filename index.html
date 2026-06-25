@@ -111,16 +111,13 @@
     z-index: 3;
   }
   .bar:hover { transform: translateX(4px); z-index: 8; }
-  .bar::after {
-    content: attr(data-name);
-    position: absolute; bottom: calc(100% + 5px); left: 0;
-    background: #2b2b2b; color: #fff;
-    padding: 5px 11px; border-radius: 10px;
-    font-size: 15px; font-weight: 400; white-space: nowrap;
-    opacity: 0; pointer-events: none; transition: opacity .12s; z-index: 40;
+  .bar .label {
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    white-space: nowrap; font-size: 15px; font-weight: 700; color: #2b2b2b;
+    text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 4px #fff;
+    pointer-events: none;
   }
-  .bar:hover::after { opacity: 1; }
-  .bar .label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .bar .label::before { content: "→ "; opacity: .5; }
   .bar .del {
     margin-left: 8px; width: 18px; height: 18px; flex: 0 0 auto;
     border-radius: 50%; background: rgba(0,0,0,.22); color: #fff;
