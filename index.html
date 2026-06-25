@@ -88,6 +88,9 @@
     color: var(--muted); font-size: 14px; text-align: center;
   }
 
+  .datebar {
+    position: sticky; bottom: 0; left: 0; z-index: 25; height: 20px;
+  }
   .datehead {
     position: absolute; bottom: 0; height: 20px; width: var(--day);
     display: flex; align-items: center; justify-content: center;
@@ -95,6 +98,8 @@
   }
   .datehead.is-today { font-weight: 700; }
   .datehead.weekend { color: #FF403E; }
+  .datebar.on-dark .datehead { color: #fff; }
+  .datebar.on-dark .datehead.weekend { color: #FF403E; }
 
   .bar {
     position: absolute; height: 46px;
@@ -218,6 +223,7 @@
 
   <div class="stage" id="stage">
     <div class="timeline" id="timeline"></div>
+    <div class="datebar" id="datebar"></div>
 
     <div class="dust-wrap" id="dust" style="display:none">
       <div class="bubble" id="bubble">오늘</div>
@@ -267,7 +273,7 @@
 
 <script>
 const KEY = "work_book_tower_v1";
-const DAY = 54, BAR_H = 46, ROW_GAP = 0, TOP_PAD = 16, BASE = 24;
+const DAY = 54, BAR_H = 46, ROW_GAP = 0, TOP_PAD = 200, BASE = 24;
 const PALETTE = [
   "#0CEFD3","#1A7CFF","#6580FF","#FF403E","#FF8400","#FFC600","#F13FA1","#A8744F",
   "#08A794","#0BD7BE","#87FFE5","#B0FFEB","#E6FFF8","#73B6FF","#FFEE6E","#FFAA55"
@@ -399,6 +405,7 @@ function render(keepScroll) {
     tl.style.height = "100%";
     tl.style.background = "";
     tl.innerHTML = '<div class="empty">아직 등록된 업무가 없습니다.<br>위에서 첫 업무를 올려보세요.</div>';
+    document.getElementById("datebar").innerHTML = "";
     dust.style.display = "none";
     legend.textContent = "";
     return;
@@ -425,7 +432,10 @@ function render(keepScroll) {
   tl.style.background = SKY_GRADIENT;
   decorate(tl, width, height, totalDays);
 
-  // 날짜 숫자 (하단)
+  // 날짜 숫자 — 화면 하단 고정 바(datebar)에, 가로로만 책과 함께 이동
+  const datebar = document.getElementById("datebar");
+  datebar.innerHTML = "";
+  datebar.style.width = width + "px";
   for (let i = 0; i < totalDays; i++) {
     const ds = addDays(lo, i);
     const d = parseD(ds);
@@ -434,7 +444,7 @@ function render(keepScroll) {
     head.className = "datehead" + (ds === today ? " is-today" : "") + (dow === 0 || dow === 6 ? " weekend" : "");
     head.style.left = (i * DAY) + "px";
     head.textContent = d.getDate();
-    tl.appendChild(head);
+    datebar.appendChild(head);
   }
 
   const tx = diffDays(lo, today) * DAY + DAY / 2;
@@ -475,7 +485,7 @@ function render(keepScroll) {
   // 가로: 오늘 날짜 중심 / 세로: 오늘 책탑 꼭대기가 화면 상단에 오도록 (아래로 스크롤하면 바닥 확인 가능)
   stage.scrollLeft = Math.max(0, tx - stage.clientWidth / 2);
   const headerH = document.querySelector("header").offsetHeight;
-  stage.scrollTop = Math.max(0, (height - todayTop) - headerH - 80);
+  stage.scrollTop = Math.max(0, (height - todayTop) - headerH - 130);
   updateHeaderColor();
 }
 
@@ -507,8 +517,11 @@ function esc(s) { return s.replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">"
 // 헤더 뒤 배경(화면 최상단)이 어두우면 글자 흰색으로
 function updateHeaderColor() {
   const tl = document.getElementById("timeline");
-  const yTop = tl.offsetHeight - document.getElementById("stage").scrollTop;   // 화면 최상단의 배경 높이(bottom 기준)
+  const stage = document.getElementById("stage");
+  const yTop = tl.offsetHeight - stage.scrollTop;                              // 화면 최상단 배경 높이
   document.querySelector("header").classList.toggle("on-dark", yTop >= 1000);
+  const yBottom = tl.offsetHeight - (stage.scrollTop + stage.clientHeight);    // 화면 최하단 배경 높이
+  document.getElementById("datebar").classList.toggle("on-dark", yBottom >= 1000);
 }
 
 const today = todayStr();
