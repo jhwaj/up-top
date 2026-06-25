@@ -285,6 +285,20 @@ const PALETTE = [
   "#0CEFD3","#1A7CFF","#6580FF","#FF403E","#FF8400","#FFC600","#F13FA1","#A8744F",
   "#08A794","#0BD7BE","#87FFE5","#B0FFEB","#E6FFF8","#73B6FF","#FFEE6E","#FFAA55"
 ];
+// ===== 테스트용 예시 데이터 (우주까지 쌓인 책탑) =====
+const _TT = ["7월 감사이벤트 PPT","그룹 프로모션 포스터","부산/울산 협력사 콘텐츠","충로라운지 무인 운영","3PL 협력사 브랜딩","카카오 소식란 후기","배너 디자인","상세페이지 개편","영상 편집","SNS 홍보 콘텐츠","제휴 제안서","월간 리포트","UI 개선 작업","QA 점검","런칭 준비","고객 설문 분석","데이터 대시보드","워크숍 준비","뉴스레터 발송","온보딩 가이드"];
+const EXAMPLE_TASKS = [];
+for (let _i = 0; _i < 95; _i++) {
+  const _sd = new Date(2026, 5, 18 + (_i % 7));
+  const _ed = new Date(2026, 5, 25 + (_i % 14));
+  EXAMPLE_TASKS.push({
+    id: _i + 1,
+    title: _TT[_i % _TT.length],
+    start: _sd.getFullYear() + "-" + String(_sd.getMonth()+1).padStart(2,"0") + "-" + String(_sd.getDate()).padStart(2,"0"),
+    end: _ed.getFullYear() + "-" + String(_ed.getMonth()+1).padStart(2,"0") + "-" + String(_ed.getDate()).padStart(2,"0"),
+    color: PALETTE[_i % PALETTE.length]
+  });
+}
 const BUBBLES = [
   "오늘", "오늘 ☀️", "오늘 날씨 맑음 ☀️", "오늘 날씨 비옴 ☔",
   "오늘 날씨 흐림 ☁️", "오늘도 화이팅!", "오늘 뭐하지?", "오늘 바람 솔솔 🍃",
@@ -369,8 +383,8 @@ function textColor(hex) {
   return L > 170 ? "#2b2b2b" : "#ffffff";
 }
 
-function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch { return []; } }
-function save(t) { localStorage.setItem(KEY, JSON.stringify(t)); }
+function load() { return EXAMPLE_TASKS; }
+function save(t) {}
 function todayStr() { const d = new Date(); return iso(d); }
 function iso(d) { return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
 function parseD(s) { return new Date(s + "T00:00:00"); }
