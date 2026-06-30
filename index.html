@@ -71,6 +71,13 @@
     border-radius: 9px; background: #fafafa; color: var(--ink);
   }
   .field input:focus { outline: none; border-color: #c9c3b8; background: #fff; }
+  .field textarea {
+    font-family: inherit; font-size: 15px; line-height: 1.45;
+    padding: 9px 11px; border: 1px solid var(--line);
+    border-radius: 9px; background: #fafafa; color: var(--ink);
+    resize: vertical; min-height: 64px; width: 100%;
+  }
+  .field textarea:focus { outline: none; border-color: #c9c3b8; background: #fff; }
 
   /* 캘린더(타임라인) 영역 */
   .stage {
@@ -90,7 +97,7 @@
   }
 
   .datebar {
-    position: sticky; bottom: 0; left: 0; z-index: 25; height: 20px;
+    position: sticky; bottom: 0; z-index: 25; height: 20px;
   }
   .datehead {
     position: absolute; bottom: 0; height: 20px; width: var(--day);
@@ -114,8 +121,9 @@
   .bar:hover { transform: translateX(4px); z-index: 8; }
   .bar .label {
     flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
-    white-space: nowrap; pointer-events: none;
+    white-space: nowrap; pointer-events: none; text-align: right;
   }
+  .bar.label-out { z-index: 12; }   /* 옆으로 빠진 라벨이 뒤 막대에 가려지지 않게 위로 */
   .bar.label-out .label {
     position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
     flex: none; overflow: visible; color: #2b2b2b; font-weight: 700;
@@ -128,6 +136,9 @@
     font-size: 12px; line-height: 18px; text-align: center; opacity: 0; transition: opacity .12s;
   }
   .bar:hover .del { opacity: 1; }
+  .bar .ribbon { position: absolute; top: 0; right: 14px; pointer-events: none; }
+  .bar.has-memo .label { padding-right: 30px; }
+  .bar.has-memo.label-out .label { padding-right: 0; }
 
   .legend {
     flex: 0 0 auto; text-align: center; color: #2b2b2b; font-weight: 400;
@@ -271,6 +282,7 @@
       <div class="field"><label>업무 이름</label><input type="text" id="e-title" autocomplete="off"></div>
       <div class="field"><label>시작일</label><input type="date" id="e-start"></div>
       <div class="field"><label>종료일</label><input type="date" id="e-end"></div>
+      <div class="field"><label>메모</label><textarea id="e-memo" placeholder="이 책에 끼울 메모…" autocomplete="off"></textarea></div>
       <div class="editor-btns">
         <button class="e-del" onclick="deleteEditing()">삭제</button>
         <button class="e-save" onclick="saveEditing()">저장</button>
@@ -316,6 +328,8 @@ const PLANET2 = '<svg width="58" viewBox="0 0 60 60" xmlns="http://www.w3.org/20
   '<g filter="url(#sketch)" stroke="#2b2b2b" stroke-width="2" stroke-linejoin="round">' +
   '<circle cx="30" cy="30" r="22" fill="#6580FF"/>' +
   '<circle cx="22" cy="24" r="4" fill="none"/><circle cx="37" cy="36" r="6" fill="none"/></g></svg>';
+const RIBBON = '<svg class="ribbon" width="15" viewBox="0 0 16 28" xmlns="http://www.w3.org/2000/svg">' +
+  '<path filter="url(#sketch)" d="M2 1 H14 V25 L8 18.5 L2 25 Z" fill="#FF7A7A" stroke="#2b2b2b" stroke-width="1.8" stroke-linejoin="round"/></svg>';
 const NEBULA = '<svg width="160" viewBox="0 0 160 92" xmlns="http://www.w3.org/2000/svg">' +
   '<g filter="url(#sketch)" stroke="#c084fc" stroke-width="1.6" stroke-linejoin="round">' +
   '<path d="M32 64 Q12 60 20 44 Q12 28 32 30 Q40 12 60 22 Q80 8 100 24 Q128 18 128 40 Q150 46 134 64 Q140 82 108 74 Q84 86 58 74 Q42 80 32 64 Z" fill="rgba(150,90,230,.30)"/>' +
@@ -386,6 +400,7 @@ function addTask() {
   if (!title) { alert("업무 이름을 입력하세요."); return; }
   if (!start || !end) { alert("시작일과 종료일을 입력하세요."); return; }
   if (parseD(end) < parseD(start)) { alert("종료일이 시작일보다 빠릅니다."); return; }
+  snapshot();
   const tasks = load();
   const used = tasks.map(t => t.color).filter(Boolean);
   tasks.push({ id: Date.now(), title, start, end, color: pickColor(used) });
@@ -396,8 +411,18 @@ function addTask() {
   document.getElementById("end").value = t0;
   render(true);
 }
-function removeTask(id) { save(load().filter(t => t.id !== id)); render(true); }
-function resetAll() { if (confirm("모든 업무를 삭제할까요? 되돌릴 수 없습니다.")) { save([]); render(); } }
+function removeTask(id) { snapshot(); save(load().filter(t => t.id !== id)); render(true); }
+function resetAll() { if (confirm("모든 업무를 삭제할까요? 되돌릴 수 없습니다.")) { snapshot(); save([]); render(); } }
+
+// 실행취소 (Ctrl+Z / Cmd+Z): 변경 직전 상태를 쌓아두고 복원
+let undoStack = [];
+function snapshot() { undoStack.push(localStorage.getItem(KEY) || "[]"); if (undoStack.length > 100) undoStack.shift(); }
+function undo() {
+  if (!undoStack.length) return;
+  localStorage.setItem(KEY, undoStack.pop());
+  if (!document.getElementById("editor").hidden) closeEditor();
+  render(true);
+}
 
 let editingId = null;
 function openEditor(t) {
@@ -405,6 +430,7 @@ function openEditor(t) {
   document.getElementById("e-title").value = t.title;
   document.getElementById("e-start").value = t.start;
   document.getElementById("e-end").value = t.end;
+  document.getElementById("e-memo").value = t.memo || "";
   document.getElementById("editor").hidden = false;
 }
 function closeEditor() { document.getElementById("editor").hidden = true; editingId = null; }
@@ -416,8 +442,9 @@ function saveEditing() {
   if (!s || !e) { alert("날짜를 입력하세요."); return; }
   if (parseD(e) < parseD(s)) { alert("종료일이 시작일보다 빠릅니다."); return; }
   const tasks = load();
+  const memo = document.getElementById("e-memo").value.trim();
   const t = tasks.find(x => x.id === editingId);
-  if (t) { t.title = title; t.start = s; t.end = e; save(tasks); }
+  if (t) { snapshot(); t.title = title; t.start = s; t.end = e; t.memo = memo; save(tasks); }
   closeEditor();
   render(true);
 }
@@ -485,14 +512,16 @@ function render(keepScroll) {
     const onToday = t.start <= today && today <= t.end;
     if (onToday) { hasToday = true; todayTop = Math.max(todayTop, topY); }
 
+    const hasMemo = !!(t.memo && t.memo.trim());
     const bar = document.createElement("div");
-    bar.className = "bar" + (onToday ? " is-today" : "");
+    bar.className = "bar" + (onToday ? " is-today" : "") + (hasMemo ? " has-memo" : "");
     bar.style.left = left + "px";
     bar.style.width = (w - 2) + "px";
     bar.style.bottom = bottom + "px";
     bar.style.background = color;
     bar.style.color = textColor(color);
-    bar.innerHTML = '<span class="label">' + esc(t.title) + '</span>';
+    bar.innerHTML = '<span class="label">' + esc(t.title) + '</span>' + (hasMemo ? RIBBON : "");
+    bar.title = hasMemo ? t.memo : "";
     bar.onclick = () => openEditor(t);
     tl.appendChild(bar);
     // 막대 안에 이름이 안 들어가면(잘리면) 옆 화살표 라벨로
@@ -542,7 +571,7 @@ function importData(e) {
     try {
       const arr = JSON.parse(reader.result);
       if (!Array.isArray(arr)) throw 0;
-      save(arr); render();
+      snapshot(); save(arr); render();
       alert("불러왔습니다: " + arr.length + "건");
     } catch { alert("올바른 백업 파일이 아닙니다."); }
   };
@@ -565,6 +594,14 @@ const today = todayStr();
 document.getElementById("start").value = today;
 document.getElementById("end").value = today;
 document.getElementById("title").addEventListener("keydown", e => { if (e.key === "Enter") addTask(); });
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === "z" || e.key === "Z")) {
+    const tag = (document.activeElement && document.activeElement.tagName) || "";
+    if (tag === "INPUT" || tag === "TEXTAREA") return;   // 입력 중일 땐 기본 실행취소 유지
+    e.preventDefault();
+    undo();
+  }
+});
 document.getElementById("stage").addEventListener("scroll", updateHeaderColor);
 let _resizeT;
 window.addEventListener("resize", () => { clearTimeout(_resizeT); _resizeT = setTimeout(render, 150); });
