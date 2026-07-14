@@ -1,4 +1,4 @@
-const CACHE = "uptop-v2";
+const CACHE = "uptop-v3";
 const ASSETS = [
   "./",
   "./index.html",
@@ -9,20 +9,24 @@ const ASSETS = [
 ];
 
 self.addEventListener("install", (e) => {
+  // skipWaiting 하지 않음 → 새 워커는 '대기' 상태로 두고, 사용자가 '업데이트'를 누를 때 교체
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
-  self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
-    )
+    caches.keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
-// 네트워크 우선, 실패 시 캐시 (오프라인 동작). HTML은 최신 유지, 자산은 캐시로 폴백.
+// 페이지가 '업데이트' 버튼을 눌렀을 때 대기 중 워커를 즉시 활성화
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") self.skipWaiting();
+});
+
+// 네트워크 우선, 실패 시 캐시 (오프라인 동작)
 self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET") return;
   e.respondWith(
