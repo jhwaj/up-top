@@ -1,4 +1,4 @@
-const CACHE = "uptop-v1";
+const CACHE = "uptop-v2";
 const ASSETS = [
   "./",
   "./index.html",
