@@ -1,6 +1,6 @@
 #!/bin/bash
 # 업무 캘린더 설치 (맥) — 받는 맥에서 앱을 직접 만들어 로컬 서명하므로
-# 다른 맥에서 만든 서명/검역 문제 없이 항상 열린다. 아이콘은 투명 먼지.
+# 다른 맥에서 만든 서명/검역 문제 없이 항상 열린다. 아이콘은 먼지 얼굴.
 #   curl -fsSL https://jhwaj.github.io/up-top/install.sh | bash
 set -euo pipefail
 
@@ -14,14 +14,16 @@ APP="$DEST/$APP_NAME.app"
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 echo "▶ 리소스 다운로드…"
-curl -fsSL "$BASE/standalone.html" -o "$TMP/index.html"
-curl -fsSL "$BASE/app.icns" -o "$TMP/app.icns"
+curl -fsSL "$BASE/index.html"      -o "$TMP/index.html"
+curl -fsSL "$BASE/BMKkubulim.otf"  -o "$TMP/BMKkubulim.otf"
+curl -fsSL "$BASE/app.icns"        -o "$TMP/app.icns"
 
 echo "▶ 앱 생성…"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$TMP/index.html" "$APP/Contents/Resources/index.html"
-cp "$TMP/app.icns"   "$APP/Contents/Resources/app.icns"
+cp "$TMP/index.html"     "$APP/Contents/Resources/index.html"
+cp "$TMP/BMKkubulim.otf" "$APP/Contents/Resources/BMKkubulim.otf"
+cp "$TMP/app.icns"       "$APP/Contents/Resources/app.icns"
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -44,7 +46,8 @@ cat > "$APP/Contents/MacOS/run" <<'RUN'
 #!/bin/bash
 RES="$(cd "$(dirname "$0")/../Resources" && pwd)"
 APPDIR="$HOME/.uptop-calendar"; mkdir -p "$APPDIR"
-cp -f "$RES/index.html" "$APPDIR/index.html"
+cp -f "$RES/index.html"     "$APPDIR/index.html"
+cp -f "$RES/BMKkubulim.otf" "$APPDIR/BMKkubulim.otf"
 URL="file://$APPDIR/index.html"; PROFILE="$APPDIR/profile"
 CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 if [ -x "$CHROME" ]; then
@@ -55,7 +58,6 @@ fi
 RUN
 chmod +x "$APP/Contents/MacOS/run"
 
-# 받는 맥에서 로컬 ad-hoc 서명 → 이 기기에서 확실히 실행됨 (검역도 제거)
 codesign --force --deep --sign - "$APP" 2>/dev/null || true
 xattr -cr "$APP" 2>/dev/null || true
 
